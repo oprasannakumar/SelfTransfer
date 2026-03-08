@@ -835,7 +835,6 @@ if (!refVal) {
       withdrawn: document.getElementById('flow').value === 'withdraw' ? row.querySelector('.row-amt').value : 0,  
       deposit: document.getElementById('flow').value === 'deposit' ? row.querySelector('.row-amt').value : 0,  
       category: "monthly transactions"  
-      recurring: isRecurring ? "1" : "0"
     });  
     if(row.querySelector('.row-type').value === "CASH") {  
         document.querySelectorAll(".denom-input").forEach(i => p.append("d"+i.dataset.val, i.value || 0));  
@@ -940,9 +939,7 @@ async function processSave() {
   try {  
     for(let body of currentPayloads) { await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body }); }  
     showToast("✔ Transaction Saved"); 
-    if(params.get("recurring") === "1"){
-        updateRecurringNextDate();
-     }
+    updateRecurringNextDate();
     fullReset();  
   } catch (err) {  
     saveToDB();  
@@ -1287,9 +1284,7 @@ async function syncAllData(){
     btnStop.textContent = `🛑 Stop Syncing (${i+1}/${items.length})`;  
     try {  
       await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: items[i] });  
-      if(document.getElementById("recurringToggle").checked){
-  updateRecurringNextDate();
-}
+      updateRecurringNextDate();
       await new Promise(res => {  
           db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(keys[i]).onsuccess = () => { updatePendingCount(); res(); };  
       });  
