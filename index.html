@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">    <style>  
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');  
     :root {   
-      --h:42px; --r:10px; --primary: #22c55e; --secondary: #3b82f6; --danger: #ef4444;   
+      --h:42px; --r:10px; --primary: #22c55e; --secondary: #3b82f6; --danger: #f87171;   
       --bg-body: linear-gradient(135deg,#eef2f7,#f9fafb);  
       --bg-card: #ffffff; --text-main: #1f2937; --text-label: #374151; --border-color: #d1d5db; --bg-input: #ffffff;  
     }  
@@ -159,8 +159,8 @@
     #btnSyncAll { background: var(--secondary); color: white; }  
    #btnStopSync {   
   background: #ffffff; /* White background to contrast primary sync */  
-  color: #ef4444;      /* Red text to indicate a stop/danger action */  
-  border: 1.5px solid #ef4444; /* Red border */  
+  color: #f87171;      /* Red text to indicate a stop/danger action */  
+  border: 1.5px solid #f87171; /* Red border */  
   height: 42px;  
   border-radius: 12px; /* Slightly more rounded for a modern feel */  
   font-weight: 700;  
@@ -285,21 +285,23 @@ table td:nth-child(3), table th:nth-child(3) {
   border: 1px dashed var(--secondary);  
 }  
 /* Toast Notification Style */  
-#toast {  
-  position: fixed;  
-  bottom:50%;  
-  left: 50%;  
-  transform: translateX(-50%);  
-  background: var(--primary);  
-  color: white;  
-  padding: 12px 24px;  
-  border-radius: 50px;  
-  font-size: 14px;  
-  font-weight: 700;  
-  box-shadow: 0 4px 15px rgba(0,0,0,0.3);  
-  z-index: 10001;  
-  transition: opacity 0.3s ease, visibility 0.3s ease;  
-}  
+#toast {
+  position: fixed;
+  bottom:50%;
+  left: 50%;
+  transform: translate(-50%, 0);
+  background: var(--primary);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 15px;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  z-index: 10001;
+  text-align: center;   /* ⭐ centers text */
+  min-width: 20px;     /* optional: nicer shape */
+  max-width: 280px;
+}
 .toggle-row{
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -516,6 +518,7 @@ const creditCards = [
 const rewardPlatforms = ["Amazon", "Flipkart", "Supermoney", "Payzapp", "MobiKwik", "Tata Neu"];  
 const denoms = [500,200,100,50,20,10,5,2,1];  
 const DB_NAME = "TransactionManagerDB_v4", STORE_NAME = "txn_queue";  
+let db = null;
   
 // FAB Menu Logic  
 const navFab = document.getElementById('navFab');  
@@ -710,14 +713,14 @@ function toggleCashBlock() {
     const text = await navigator.clipboard.readText();  
   
     if (!text.trim()) {  
-      alert("Clipboard is empty.");  
+      showToast("Clipboard is empty.");  
       return;  
     }  
   
     applyAutoFill(text);  
   
   } catch (err) {  
-    alert("Clipboard permission denied.");  
+    showToast("Clipboard permission denied.","#f87171");  
   }  
 };  
 document.getElementById('receiptUpload').addEventListener('change', function(e) {  
@@ -742,7 +745,7 @@ document.getElementById('receiptUpload').addEventListener('change', function(e) 
   document.getElementById('btnShowAutofill').textContent = "✨ Use Receipt Auto-Fill";  
   
   if (response.status !== "success") {  
-    alert("Extraction failed");  
+    showToast("Extraction failed");  
     return;  
   }  
   
@@ -762,7 +765,7 @@ document.getElementById('receiptUpload').addEventListener('change', function(e) 
 })  
     .catch(err => {  
       document.getElementById('btnShowAutofill').textContent = "✨ Use Receipt Auto-Fill";  
-      alert("Upload failed");  
+      showToast("Upload failed");  
     });  
   };  
   
@@ -802,7 +805,7 @@ document.getElementById('txnForm').onsubmit = function(e) {
     
   const gTotalStr = document.getElementById('grandTotal').textContent;  
   if(parseFloat(gTotalStr.replace('₹', '')) <= 0) {  
-    alert("Transaction amount must be greater than zero.");  
+    showToast("Amount must be greater than zero", "#f87171");  
     return;  
   }  
   
@@ -861,7 +864,6 @@ if (!refVal) {
   });  
   
   document.getElementById('confirmDetails').innerHTML = detailsHtml;  
-  localStorage.setItem("lastPackage", JSON.stringify(repeatData));  
   localStorage.setItem("lastPackage", JSON.stringify(repeatData));
 
 
@@ -873,13 +875,14 @@ trainPurpose(
   if(isRecurring){
 
   const template = {
-    narration: document.getElementById("narration").value,
-    purpose: pFinal,
-    spent_for: sFinal,
-    flow: document.getElementById("flow").value,
-    payments: currentPayloads,
-    day: new Date().getDate(), frequency: "monthly"
-  };
+  narration: document.getElementById("narration").value,
+  purpose: pFinal,
+  spent_for: sFinal,
+  flow: document.getElementById("flow").value,
+  payments: currentPayloads,
+  date: document.getElementById("date").value,
+  frequency: "monthly"
+};
 
   let list = JSON.parse(localStorage.getItem("recurringTemplates") || "[]");
 
@@ -893,9 +896,9 @@ trainPurpose(
     list.push(template);
     localStorage.setItem("recurringTemplates", JSON.stringify(list));
     syncRecurringBackup();
-    alert("Recurring template saved.");
+    showToast("🔁 Recurring template saved");
   }else{
-    alert("This recurring transaction already exists.");
+    showToast("Recurring transaction already exists.");
   }
 
   fullReset();
@@ -935,18 +938,41 @@ async function processSave() {
   
   try {  
     for(let body of currentPayloads) { await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body }); }  
-    alert("Saved Successfully!"); fullReset();  
+    showToast("✔ Transaction Saved"); 
+    updateRecurringNextDate();
+    fullReset();  
   } catch (err) {  
     saveToDB();  
-    alert("Network Error: Saving to local storage.");  
+    showToast("📦 Saved offline", "#3b82f6");  
   } finally { btn.disabled = false; btn.textContent = originalText; }  
 }  
   
-function saveToDB() {  
-    const tx = db.transaction(STORE_NAME, "readwrite");  
-    currentPayloads.forEach(body => tx.objectStore(STORE_NAME).add(body));  
-    tx.oncomplete = () => { updatePendingCount(); fullReset(); };  
-}  
+function saveToDB() {
+  if (!db) {
+    showToast("Database not ready", "#f87171");
+    return;
+  }
+
+  const tx = db.transaction(STORE_NAME, "readwrite");
+  const store = tx.objectStore(STORE_NAME);
+
+  currentPayloads.forEach(body => {
+    store.add(body);
+  });
+
+  tx.oncomplete = () => {
+    updatePendingCount();
+    const isBatch = document.getElementById('batchToggle').checked;
+    showToast(isBatch ? "📦 Added to Batch Queue" : "📦 Saved Offline");
+    fullReset();
+  };
+
+  tx.onerror = (e) => {
+    console.error("Queue save failed", e);
+    showToast("Error saving to queue", "#f87171");
+  };
+}
+
 function applyAutoFill(text) {  
   
   const getVal = (key) => {  
@@ -1129,7 +1155,7 @@ document.getElementById('spent_for_other').disabled = true;
   document.getElementById('referenceWrapper').classList.add('hidden');  
   document.getElementById('paymentContainer').innerHTML = "";   
   createPaymentRow();  
-  document.getElementById('date').value = new Date().toISOString().split("T")[0];  
+  document.getElementById('date').value = getTodayLocal();  
   document.querySelectorAll('.denom-input').forEach(i => i.value = "");  
   toggleCashBlock(); updateGrandTotal();  
 }  
@@ -1232,7 +1258,7 @@ function predictPurposeSmart(text) {
   return best;
 }
 async function syncAllData(){  
-  if (!navigator.onLine) { alert("Internet needed to sync."); return; }  
+  if (!navigator.onLine) { showToast("Internet needed to sync."); return; }  
   if(!confirm("Starting sync process. Proceed?")) return;  
   
   const btnSync = document.getElementById('btnSyncAll');  
@@ -1255,13 +1281,13 @@ async function syncAllData(){
       await new Promise(res => {  
           db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(keys[i]).onsuccess = () => { updatePendingCount(); res(); };  
       });  
-    } catch (err) { alert("Sync interrupted."); break; }  
+    } catch (err) { showToast("Sync interrupted."); break; }  
   }  
     
   btnStop.classList.add('hidden');  
   btnStop.textContent = "🛑 Stop Sync";  
   btnSync.classList.remove('hidden');  
-  if(syncAborted) alert("Sync stopped.");  
+  if(syncAborted) showToast("Sync stopped.");  
 }  
 function trainPurpose(narration, purpose) {
 
@@ -1312,7 +1338,7 @@ if (p.get('trtype') === 'CASH') {
 }  
   
     body.innerHTML += `<tr>  
-  <td>${formatDisplayDate(p.get('date'))}</td>  
+  <td>${formatDisplayDate(p.get('date'))}</td>
   <td>${p.get('narration')}</td>  
   <td>${invoice}</td>  
   <td>${p.get('purpose')}</td>  
@@ -1398,7 +1424,7 @@ function renderRecurringTemplates(){
 
     body.innerHTML += `
       <tr>
-        <td>${t.day}</td>
+        <td>${t.date ? formatDisplayDate(t.date) : t.day}</td>
         <td>${t.narration}</td>
         <td>${t.purpose}</td>
         <td>${t.spent_for}</td>
@@ -1430,17 +1456,73 @@ function closeRecurringManager(){
   document.getElementById("recurringModal").classList.add("hidden");
 
 }
-function loadRecurring(index){
+function updateRecurringNextDate(){
 
+  if(window.activeRecurringIndex === undefined) return;
+
+  let templates = JSON.parse(localStorage.getItem("recurringTemplates") || "[]");
+
+  const t = templates[window.activeRecurringIndex];
+
+  if(!t || !t.date) return;
+
+  let d = new Date(t.date);
+
+  if(t.frequency === "monthly"){
+    d.setMonth(d.getMonth()+1);
+  }
+
+  else if(t.frequency === "yearly"){
+    d.setFullYear(d.getFullYear()+1);
+  }
+
+  else if(t.frequency === "weekly"){
+    d.setDate(d.getDate()+7);
+  }
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+
+  t.date = `${yyyy}-${mm}-${dd}`;
+
+  localStorage.setItem("recurringTemplates", JSON.stringify(templates));
+
+  syncRecurringBackup();
+
+  window.activeRecurringIndex = undefined;
+}
+function loadRecurring(index){
+window.activeRecurringIndex = index;
   const templates = JSON.parse(localStorage.getItem("recurringTemplates") || "[]");
   const t = templates[index];
+
+  const today = new Date();
+  let year = today.getFullYear();
+  let month = today.getMonth();
+
+  const recurringDay = t.date
+    ? new Date(t.date).getDate()
+    : t.day;
+
+  if (today.getDate() < recurringDay) {
+    month -= 1;
+  }
+
+  const final = new Date(year, month, recurringDay);
+
+const yyyy = final.getFullYear();
+const mm = String(final.getMonth()+1).padStart(2,'0');
+const dd = String(final.getDate()).padStart(2,'0');
+
+document.getElementById("date").value = `${yyyy}-${mm}-${dd}`;
 
   document.getElementById("narration").value = t.narration;
   document.getElementById("purpose").value = t.purpose;
   document.getElementById("spent_for").value = t.spent_for;
   document.getElementById("flow").value = t.flow;
 
-  document.getElementById("paymentContainer").innerHTML = "";
+  document.getElementById("paymentContainer").innerHTML="";
 
   t.payments.forEach(p=>{
     const params = new URLSearchParams(p);
@@ -1450,16 +1532,15 @@ function loadRecurring(index){
       acc: params.get("from_to"),
       amt: params.get("withdrawn") || params.get("deposit")
     });
-
   });
 
   updateGrandTotal();
-
   closeRecurringManager();
 }
-function deleteRecurring(index){
+async function deleteRecurring(index){
 
-  if(!confirm("Delete this recurring template?")) return;
+  const ok = await showConfirm("Delete this recurring template?");
+  if(!ok) return;
 
   let templates = JSON.parse(localStorage.getItem("recurringTemplates") || "[]");
 
@@ -1467,7 +1548,11 @@ function deleteRecurring(index){
 
   localStorage.setItem("recurringTemplates",JSON.stringify(templates));
 
+  syncRecurringBackup();
+
   renderRecurringTemplates();
+
+  showToast("🗑️ Recurring template deleted","#f87171");
 }
 function restoreRecurringBackup(){
 
@@ -1481,6 +1566,13 @@ function restoreRecurringBackup(){
     }
   });
 
+}
+function getTodayLocal(){
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 function toggleSmartOther(selectObj, otherId, parentId, silent = false) {
   const otherInput = document.getElementById(otherId);
@@ -1497,7 +1589,42 @@ function toggleSmartOther(selectObj, otherId, parentId, silent = false) {
     otherInput.focus();
   }
 }
-  
+function showToast(msg, color="var(--primary)"){
+
+  const toast = document.getElementById("toast");
+
+  toast.textContent = msg;
+  toast.style.background = color;
+
+  toast.classList.remove("hidden");
+
+  setTimeout(()=>{
+    toast.classList.add("hidden");
+  },2500);
+}
+function showConfirm(message){
+
+  return new Promise(resolve=>{
+
+    const modal = document.getElementById("confirmPopup");
+
+    document.getElementById("confirmMsg").textContent = message;
+
+    modal.classList.remove("hidden");
+
+    document.getElementById("confirmYes").onclick = ()=>{
+      modal.classList.add("hidden");
+      resolve(true);
+    };
+
+    document.getElementById("confirmNo").onclick = ()=>{
+      modal.classList.add("hidden");
+      resolve(false);
+    };
+
+  });
+
+}
 denoms.forEach(v => {  
   const c = document.createElement("div"); c.className = "cash-card";  
   c.innerHTML = `<span>₹${v}</span><input type="number" data-val="${v}" class="denom-input" placeholder="0">`;  
@@ -1509,7 +1636,16 @@ document.getElementById('btnAddMode').onclick = () => createPaymentRow();
 document.getElementById('btnViewQueue').onclick = () => document.getElementById('queueModal').classList.remove('hidden');  
 document.getElementById('btnSyncAll').onclick = syncAllData;  
 document.getElementById('btnStopSync').onclick = () => { syncAborted = true; };  
-  
+  document.getElementById("recurringToggle").addEventListener("change",function(){
+  if(this.checked){
+    document.getElementById("batchToggle").checked=false;
+  }
+});
+document.getElementById("batchToggle").addEventListener("change",function(){
+  if(this.checked){
+    document.getElementById("recurringToggle").checked=false;
+  }
+});
 if (document.body.classList.contains('dark')) {  
     themeToggle.textContent = '☀️';  
 }  
@@ -1541,7 +1677,7 @@ document.getElementById('btnRepeat').onclick = () => {
   });  
   updateGrandTotal();  
 };  
-document.getElementById('date').value = new Date().toISOString().split("T")[0];  
+document.getElementById('date').value = getTodayLocal();  
 loadPurposeMemory();
 restoreRecurringBackup();
 createPaymentRow();  
@@ -1553,5 +1689,19 @@ if ('serviceWorker' in navigator) {
         .catch(err => console.log('SW Registration Failed', err));  
     });  
   }  
-</script>  </body>  
+</script>  
+<div id="toast" class="hidden"></div>
+<div id="confirmPopup" class="modal hidden">
+  <div class="confirm-card">
+    <h3 id="confirmTitle">Confirm</h3>
+
+    <div style="padding:15px;text-align:center" id="confirmMsg"></div>
+
+    <div class="btn-group">
+      <button id="confirmYes" class="btn-confirm">Yes</button>
+      <button id="confirmNo" class="btn-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+</body>  
 </html>
