@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Page</title>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            background: #f0fdf4; 
+            text-align: center; 
+            padding-top: 50px; 
+        }
+        
+        /* Hide everything by default */
+        #content, #denied { 
+            display: none; 
+        }
+        
+        .box { 
+            background: white; 
+            padding: 30px; 
+            border: 2px solid #22c55e; 
+            border-radius: 10px; 
+        }
+        
+        .denied-box {
+            background: #fef2f2;
+            padding: 30px;
+            border: 2px solid #ef4444;
+            border-radius: 10px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- This shows while the script is checking the IP -->
+    <h3 id="loading" style="color: #4b5563;">Checking network connection...</h3>
+
+    <!-- This shows if the IP DOES NOT match -->
+    <div id="denied">
+        <div class="denied-box">
+            <h1 style="color: #ef4444; margin-top: 0;">⛔ Access Denied</h1>
+            <p style="color: #7f1d1d;">You must be connected to the correct Wi-Fi network to view this page.</p>
+        </div>
+    </div>
+
+    <!-- This shows if the IP DOES match -->
+    <div id="content">
+        <div class="box">
+            <h1 style="color: #166534; margin-top: 0;">✅ Access Granted!</h1>
+            <p>You are connected to the correct Wi-Fi network.</p>
+            <p>Your IP: <strong id="user-ip"></strong></p>
+            
+            <hr style="margin: 20px 0; border: 1px solid #e5e7eb;">
+            
+            <!-- ADD YOUR ACTUAL WEBSITE STUFF HERE -->
+            <p>Welcome to the private page!</p>
+            
+        </div>
+    </div>
+
+    <script>
+        // Your specific Wi-Fi IP address
+        const allowedIP = '49.43.220.139';
+
+        // Fetch the user's current IP
+        fetch('https://api.ipify.org?format=json')
+            .then(response => response.json())
+            .then(data => {
+                // Hide the loading text
+                document.getElementById('loading').style.display = 'none';
+                
+                // Check if the IPs match
+                if (data.ip === allowedIP) {
+                    // Show the secret content
+                    document.getElementById('content').style.display = 'block';
+                    document.getElementById('user-ip').innerText = data.ip;
+                } else {
+                    // Show the denied message
+                    document.getElementById('denied').style.display = 'block';
+                }
+            })
+            .catch(() => {
+                document.getElementById('loading').innerText = 'Error checking IP address. Please disable adblockers and try again.';
+            });
+    </script>
+</body>
+</html>
