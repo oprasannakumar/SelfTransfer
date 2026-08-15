@@ -29,7 +29,7 @@
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID,
                 scope: SCOPES,
-                callback: '', // defined later
+                callback: '', 
             });
             gisInited = true;
             maybeEnableButtons();
@@ -44,16 +44,18 @@
         function handleAuthClick() {
             tokenClient.callback = async (resp) => {
                 if (resp.error !== undefined) {
+                    alert('Authentication Error: ' + resp.error);
                     throw (resp);
                 }
                 
-                // --- THIS IS THE CRUCIAL FIX I MISSED ---
-                // We must tell the API client to use the token we just received
+                // Alert 1: Confirms the popup closed and token was received
+                alert('Login successful! Sending request to create spreadsheet...');
+                
                 gapi.client.setToken({ access_token: resp.access_token });
-                // ----------------------------------------
                 
                 document.getElementById('auth-button').style.display = 'none';
-                document.getElementById('status').innerText = 'Successfully authenticated. Creating your spreadsheet now...';
+                document.getElementById('status').innerText = 'Creating your spreadsheet...';
+                
                 await createSpreadsheet();
             };
 
@@ -77,10 +79,16 @@
                 const spreadsheetId = response.result.spreadsheetId;
                 const url = response.result.spreadsheetUrl;
                 
+                // Alert 2: Confirms API success
+                alert('Success! Spreadsheet created.');
+                
                 document.getElementById('status').innerHTML = 
                     `✅ Spreadsheet created successfully! <br><br> <a href="${url}" target="_blank">Click here to open "account ledger"</a>`;
             } catch (err) {
-                document.getElementById('status').innerText = 'Error creating spreadsheet: ' + err.message;
+                // Alert 3: Catches and displays the exact API error
+                let errorDetails = err.result ? err.result.error.message : err.message;
+                alert('API Error: ' + errorDetails);
+                document.getElementById('status').innerText = 'Error: ' + errorDetails;
                 console.error(err);
             }
         }
