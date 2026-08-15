@@ -10,7 +10,112 @@
             background: #f0fdf4; 
             text-align: center; 
             padding-top: 50px; 
+        }<!DOCTYPE html>
+<html>
+<head>
+    <title>Google Sheets API Example</title>
+    <!-- Load Google API Client Library -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <!-- Load Google Identity Services Library -->
+    <script src="https://accounts.google.com/gsi/client"></script>
+    
+    <script>
+        // Replace with your actual Client ID from Google Cloud Console
+        const CLIENT_ID = '859253803666-0euh56j48pec6rr1uvlpnl6m2r7h445r.apps.googleusercontent.com';
+        // The scope required to create and manage spreadsheets
+        const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+        
+        let tokenClient;
+        let gapiInited = false;
+        let gisInited = false;
+
+        // Initialize the Google API client library
+        function gapiLoaded() {
+            gapi.load('client', initializeGapiClient);
         }
+
+        async function initializeGapiClient() {
+            await gapi.client.init({
+                // The discovery document for the Sheets API
+                discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
+            });
+            gapiInited = true;
+            maybeEnableButtons();
+        }
+
+        // Initialize the Google Identity Services client
+        function gisLoaded() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: '', // defined later
+            });
+            gisInited = true;
+            maybeEnableButtons();
+        }
+
+        function maybeEnableButtons() {
+            if (gapiInited && gisInited) {
+                document.getElementById('auth-button').style.display = 'block';
+            }
+        }
+
+        // Trigger the OAuth 2.0 flow
+        function handleAuthClick() {
+            tokenClient.callback = async (resp) => {
+                if (resp.error !== undefined) {
+                    throw (resp);
+                }
+                document.getElementById('auth-button').style.display = 'none';
+                document.getElementById('action-button').style.display = 'block';
+                document.getElementById('status').innerText = 'Successfully authenticated.';
+            };
+
+            if (gapi.client.getToken() === null) {
+                // Prompt the user to select an account and grant consent
+                tokenClient.requestAccessToken({prompt: 'consent'});
+            } else {
+                // Skip the prompt if an access token is already available
+                tokenClient.requestAccessToken({prompt: ''});
+            }
+        }
+
+        // Call the Sheets API to create a new spreadsheet
+        async function createSpreadsheet() {
+            try {
+                const response = await gapi.client.sheets.spreadsheets.create({
+                    resource: {
+                        properties: {
+                            title: 'account ledger'
+                        }
+                    }
+                });
+                
+                const spreadsheetId = response.result.spreadsheetId;
+                const url = response.result.spreadsheetUrl;
+                
+                document.getElementById('status').innerHTML = 
+                    `Spreadsheet created successfully! <br> ID: ${spreadsheetId} <br> <a href="${url}" target="_blank">Open Spreadsheet</a>`;
+            } catch (err) {
+                document.getElementById('status').innerText = 'Error creating spreadsheet: ' + err.message;
+                console.error(err);
+            }
+        }
+    </script>
+</head>
+<body onload="gapiLoaded(); gisLoaded();">
+    <h2>Secure Google Sheets Manager</h2>
+    
+    <p id="status">Loading Google libraries...</p>
+    
+    <!-- User clicks this to log in securely via Google's UI -->
+    <button id="auth-button" style="display: none;" onclick="handleAuthClick()">Authorize Google Account</button>
+    
+    <!-- Appears only after successful authentication -->
+    <button id="action-button" style="display: none;" onclick="createSpreadsheet()">Create "account ledger" Sheet</button>
+</body>
+</html>
+
         
         /* Hide everything by default */
         #content, #denied { 
