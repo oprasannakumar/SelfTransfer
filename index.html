@@ -46,10 +46,13 @@
                 if (resp.error !== undefined) {
                     throw (resp);
                 }
-                // Hide the login button
-                document.getElementById('auth-button').style.display = 'none';
                 
-                // Update status and automatically trigger sheet creation
+                // --- THIS IS THE CRUCIAL FIX I MISSED ---
+                // We must tell the API client to use the token we just received
+                gapi.client.setToken({ access_token: resp.access_token });
+                // ----------------------------------------
+                
+                document.getElementById('auth-button').style.display = 'none';
                 document.getElementById('status').innerText = 'Successfully authenticated. Creating your spreadsheet now...';
                 await createSpreadsheet();
             };
