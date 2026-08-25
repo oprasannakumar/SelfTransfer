@@ -373,7 +373,7 @@
         // Request an access token for Google Sheets
         const tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: GOOGLE_CLIENT_ID,
-            scope: 'https://www.googleapis.com/auth/spreadsheets',
+            scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly',
             callback: async (tokenResponse) => {
                 if (tokenResponse.error) {
                     console.error('Token error:', tokenResponse);
