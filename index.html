@@ -360,65 +360,113 @@
     };
     const formDataState = { direction: 'IN', type: 'UPI', account: '' };
 
-    // ─── Google Sign-In ─────────────────────────────────────────────
+// ─── Google Sign-In & Session Management ────────────────────────
 
-    function onGoogleSignIn(response) {
-        // Decode the ID token to get the user's email
-        const payload = JSON.parse(atob(response.credential.split('.')[1]));
-        userEmail = payload.email;
-        document.getElementById('user-email').textContent = 'Logged in as: ' + userEmail;
-        document.getElementById('user-info').style.display = 'flex';
-        document.querySelector('.g_id_signin').style.display = 'none';
+let tokenClient = null;
 
-        // Request an access token for Google Sheets
-        const tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: GOOGLE_CLIENT_ID,
-            scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly',
-            callback: async (tokenResponse) => {
-                if (tokenResponse.error) {
-                    console.error('Token error:', tokenResponse);
-                    showToast('Failed to get access token');
-                    return;
-                }
-                userAccessToken = tokenResponse.access_token;
-                showToast('Signed in as ' + userEmail);
+function updateAuthUI(email) {
+    document.getElementById('user-email').textContent = 'Logged in as: ' + email;
+    document.getElementById('user-info').style.display = 'flex';
+    document.querySelector('.g_id_signin').style.display = 'none';
+}
 
-                // ─── Initialise user's sheet ──────────────────────
-                try {
-                    const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'init',
-                            accessToken: userAccessToken,
-                            email: userEmail,
-                        }),
-                    });
-                    const initData = await initResp.json();
-                    if (initData.status === 'success') {
-                        showToast('Sheet ready!');
-                        // Auto‑fetch today's data
-                        fetchFromCloud();
-                    } else {
-                        showToast('Failed to initialize sheet: ' + initData.data);
-                    }
-                } catch (err) {
-                    console.error('Init error:', err);
-                    showToast('Error initializing sheet');
-                }
-            },
+function initGoogleClient() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly',
+        callback: async (tokenResponse) => {
+            if (tokenResponse.error) {
+                console.error('Token error:', tokenResponse);
+                // If silent refresh fails, clear session and show sign-in button
+                signOut();
+                showToast('Session expired. Please sign in.');
+                return;
+            }
+            
+            userAccessToken = tokenResponse.access_token;
+            // Calculate when the token expires (usually 3600 seconds)
+            const expiry = Date.now() + (tokenResponse.expires_in * 1000);
+            
+            // Save session state to persist across refreshes
+            localStorage.setItem('userAccessToken', userAccessToken);
+            localStorage.setItem('tokenExpiry', expiry);
+            localStorage.setItem('userEmail', userEmail);
+
+            showToast('Signed in as ' + userEmail);
+            initializeSheet();
+        },
+    });
+}
+
+function onGoogleSignIn(response) {
+    const payload = JSON.parse(atob(response.credential.split('.')[1]));
+    userEmail = payload.email;
+    updateAuthUI(userEmail);
+
+    if (!tokenClient) initGoogleClient();
+    tokenClient.requestAccessToken();
+}
+
+function restoreSession() {
+    const savedToken = localStorage.getItem('userAccessToken');
+    const expiry = localStorage.getItem('tokenExpiry');
+    const savedEmail = localStorage.getItem('userEmail');
+
+    if (savedEmail) {
+        userEmail = savedEmail;
+        updateAuthUI(userEmail);
+
+        if (savedToken && expiry && Date.now() < parseInt(expiry, 10)) {
+            // Token is still valid, restore immediately
+            userAccessToken = savedToken;
+            showToast('Session restored');
+            initializeSheet();
+        } else {
+            // Token expired, request a new one silently (prompt: '')
+            if (!tokenClient) initGoogleClient();
+            tokenClient.requestAccessToken({ prompt: '' });
+        }
+    }
+}
+
+async function initializeSheet() {
+    try {
+        const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'init',
+                accessToken: userAccessToken,
+                email: userEmail,
+            }),
         });
-        tokenClient.requestAccessToken();
+        const initData = await initResp.json();
+        if (initData.status === 'success') {
+            showToast('Sheet ready!');
+            fetchFromCloud(); // Auto-fetch today's data
+        } else {
+            showToast('Failed to initialize sheet: ' + initData.data);
+        }
+    } catch (err) {
+        console.error('Init error:', err);
+        showToast('Error initializing sheet');
     }
+}
 
-    function signOut() {
-        userAccessToken = null;
-        userEmail = null;
-        document.getElementById('user-info').style.display = 'none';
-        document.querySelector('.g_id_signin').style.display = 'block';
-        showToast('Signed out');
-        document.getElementById('history-list').innerHTML = '';
-    }
+function signOut() {
+    userAccessToken = null;
+    userEmail = null;
+    
+    // Clear cached session
+    localStorage.removeItem('userAccessToken');
+    localStorage.removeItem('tokenExpiry');
+    localStorage.removeItem('userEmail');
+    
+    document.getElementById('user-info').style.display = 'none';
+    document.querySelector('.g_id_signin').style.display = 'block';
+    showToast('Signed out');
+    document.getElementById('history-list').innerHTML = '';
+}
 
     // ─── IndexedDB Helpers ──────────────────────────────────────────
 
@@ -1122,6 +1170,7 @@
         document.getElementById('fetch-date').value = today;
 
         updateModeUI();
+        restoreSession();
         const db = await initDB();
         // Auto-clean old entries (keep 1 day)
         const cleanTx = db.transaction(STORE_NAME, "readwrite");
