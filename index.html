@@ -340,8 +340,10 @@
 
 <script>
     // ─── CONFIGURATION ───────────────────────────────────────────────
-    const CLOUDFLARE_WORKER_URL = "financetokens.oprasannak.workers.dev";   // UPDATE THIS
-    const GOOGLE_CLIENT_ID = "455353267035-tvggeucvch4scohdpp1bucugkaeb5a2g.apps.googleusercontent.com";                 // UPDATE THIS
+    // REPLACE THESE WITH YOUR ACTUAL VALUES
+    const CLOUDFLARE_WORKER_URL = "financetokens.oprasannak.workers.dev";
+    const GOOGLE_CLIENT_ID = "455353267035-tvggeucvch4scohdpp1bucugkaeb5a2g.apps.googleusercontent.com";
+    // ──────────────────────────────────────────────────────────────────
 
     // ─── State ──────────────────────────────────────────────────────
     let userAccessToken = null;
@@ -361,16 +363,24 @@
     // ─── Google Sign-In ─────────────────────────────────────────────
 
     function onGoogleSignIn(response) {
+        // Decode the ID token to get the user's email
+        const payload = JSON.parse(atob(response.credential.split('.')[1]));
+        userEmail = payload.email;
+        document.getElementById('user-email').textContent = 'Logged in as: ' + userEmail;
+        document.getElementById('user-info').style.display = 'flex';
+        document.querySelector('.g_id_signin').style.display = 'none';
+
+        // Request an access token for Google Sheets
         const tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: GOOGLE_CLIENT_ID,
             scope: 'https://www.googleapis.com/auth/spreadsheets',
             callback: async (tokenResponse) => {
+                if (tokenResponse.error) {
+                    console.error('Token error:', tokenResponse);
+                    showToast('Failed to get access token');
+                    return;
+                }
                 userAccessToken = tokenResponse.access_token;
-                const payload = JSON.parse(atob(response.credential.split('.')[1]));
-                userEmail = payload.email;
-                document.getElementById('user-email').textContent = 'Logged in as: ' + userEmail;
-                document.getElementById('user-info').style.display = 'flex';
-                document.querySelector('.g_id_signin').style.display = 'none';
                 showToast('Signed in as ' + userEmail);
 
                 // ─── Initialise user's sheet ──────────────────────
@@ -407,7 +417,6 @@
         document.getElementById('user-info').style.display = 'none';
         document.querySelector('.g_id_signin').style.display = 'block';
         showToast('Signed out');
-        // Clear local cache? (optional)
         document.getElementById('history-list').innerHTML = '';
     }
 
