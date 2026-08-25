@@ -367,7 +367,9 @@ let tokenClient = null;
 function updateAuthUI(email) {
     document.getElementById('user-email').textContent = 'Logged in as: ' + email;
     document.getElementById('user-info').style.display = 'flex';
-    document.querySelector('.g_id_signin').style.display = 'none';
+    
+    const signinBtn = document.querySelector('.g_id_signin');
+    if (signinBtn) signinBtn.style.display = 'none';
 }
 
 function initGoogleClient() {
@@ -377,19 +379,20 @@ function initGoogleClient() {
         callback: async (tokenResponse) => {
             if (tokenResponse.error) {
                 console.error('Token error:', tokenResponse);
-                // If silent refresh fails, clear session and show sign-in button
-                signOut();
+                signOut(true);
                 showToast('Session expired. Please sign in.');
                 return;
             }
             
             userAccessToken = tokenResponse.access_token;
-            // Calculate when the token expires (usually 3600 seconds)
-            const expiry = Date.now() + (tokenResponse.expires_in * 1000);
             
-            // Save session state to persist across refreshes
+            // Safely calculate when the token expires (default ~1 hour)
+            const expiresIn = tokenResponse.expires_in ? parseInt(tokenResponse.expires_in, 10) : 3500;
+            const expiry = Date.now() + (expiresIn * 1000);
+            
+            // Save session state
             localStorage.setItem('userAccessToken', userAccessToken);
-            localStorage.setItem('tokenExpiry', expiry);
+            localStorage.setItem('tokenExpiry', expiry.toString());
             localStorage.setItem('userEmail', userEmail);
 
             showToast('Signed in as ' + userEmail);
@@ -403,8 +406,18 @@ function onGoogleSignIn(response) {
     userEmail = payload.email;
     updateAuthUI(userEmail);
 
-    if (!tokenClient) initGoogleClient();
-    tokenClient.requestAccessToken();
+    // IMPORTANT: Check if we ALREADY have a valid token for this session.
+    // This stops Google from causing infinite popup loops on refresh.
+    const savedToken = localStorage.getItem('userAccessToken');
+    const expiry = localStorage.getItem('tokenExpiry');
+    
+    if (savedToken && expiry && Date.now() < parseInt(expiry, 10)) {
+        userAccessToken = savedToken;
+        initializeSheet();
+    } else {
+        if (!tokenClient) initGoogleClient();
+        tokenClient.requestAccessToken();
+    }
 }
 
 function restoreSession() {
@@ -412,24 +425,23 @@ function restoreSession() {
     const expiry = localStorage.getItem('tokenExpiry');
     const savedEmail = localStorage.getItem('userEmail');
 
-    if (savedEmail) {
+    // Only restore if ALL parts of the session exist and the token is NOT expired
+    if (savedEmail && savedToken && expiry && Date.now() < parseInt(expiry, 10)) {
         userEmail = savedEmail;
+        userAccessToken = savedToken;
         updateAuthUI(userEmail);
-
-        if (savedToken && expiry && Date.now() < parseInt(expiry, 10)) {
-            // Token is still valid, restore immediately
-            userAccessToken = savedToken;
-            showToast('Session restored');
-            initializeSheet();
-        } else {
-            // Token expired, request a new one silently (prompt: '')
-            if (!tokenClient) initGoogleClient();
-            tokenClient.requestAccessToken({ prompt: '' });
+        initializeSheet();
+    } else {
+        // If token is expired (after 1 hour), silently clean up so the user can click sign-in.
+        // Do NOT auto-request a token here, as browser popup blockers will intercept it.
+        if (savedEmail || savedToken) {
+            signOut(false); 
         }
     }
 }
 
 async function initializeSheet() {
+    if (!userAccessToken) return;
     try {
         const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
             method: 'POST',
@@ -445,31 +457,34 @@ async function initializeSheet() {
             showToast('Sheet ready!');
             fetchFromCloud(); // Auto-fetch today's data
         } else {
-            showToast('Failed to initialize sheet: ' + initData.data);
+            showToast('Failed to initialize sheet');
         }
     } catch (err) {
         console.error('Init error:', err);
-        showToast('Error initializing sheet');
+        showToast('Network error initializing sheet');
     }
 }
 
-function signOut() {
+function signOut(showToastMsg = true) {
     userAccessToken = null;
     userEmail = null;
     
-    // Clear cached session
     localStorage.removeItem('userAccessToken');
     localStorage.removeItem('tokenExpiry');
     localStorage.removeItem('userEmail');
     
     document.getElementById('user-info').style.display = 'none';
-    document.querySelector('.g_id_signin').style.display = 'block';
-    showToast('Signed out');
+    const signinBtn = document.querySelector('.g_id_signin');
+    if (signinBtn) signinBtn.style.display = 'block';
+    
     document.getElementById('history-list').innerHTML = '';
+    if (showToastMsg) showToast('Signed out');
 }
 
-    // ─── IndexedDB Helpers ──────────────────────────────────────────
+// Call instantly to prevent the UI from flickering on refresh
+restoreSession();
 
+// ─── IndexedDB Helpers ──────────────────────────────────────────
     const initDB = () => new Promise(res => {
         const req = indexedDB.open(DB_NAME, 1);
         req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
