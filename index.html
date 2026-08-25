@@ -1,104 +1,1157 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Google Sheets API Example</title>
-    <script src="https://apis.google.com/js/api.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Txn Vault | Neon Pro</title>
+    <link rel="manifest" href="manifest.json">
+    <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client"></script>
-    
-    <script>
-        const CLIENT_ID = '859253803666-0euh56j48pec6rr1uvlpnl6m2r7h445r.apps.googleusercontent.com';
-        const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
-        
-        let tokenClient;
-        let gapiInited = false;
-        let gisInited = false;
-
-        function gapiLoaded() {
-            gapi.load('client', initializeGapiClient);
+    <style>
+        :root {
+            --neon-blue: #00d2ff;
+            --neon-purple: #9d50bb;
+            --neon-green: #39ff14;
+            --neon-red: #ff3131;
+            --bg-dark: #0f172a;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
         }
 
-        async function initializeGapiClient() {
-            await gapi.client.init({
-                discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
-            });
-            gapiInited = true;
-            maybeEnableButtons();
+        * { -webkit-tap-highlight-color: transparent; outline: none; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            display: flex; flex-direction: column; align-items: center;
+            padding: 20px; background: var(--bg-dark); color: #e2e8f0;
+            margin: 0; min-height: 100vh; overflow-x: hidden;
         }
 
-        function gisLoaded() {
-            tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: CLIENT_ID,
-                scope: SCOPES,
-                callback: '', 
-            });
-            gisInited = true;
-            maybeEnableButtons();
+        .card {
+            background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            padding: 25px; border-radius: 24px; border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); width: 100%; max-width: 450px; text-align: center;
         }
 
-        function maybeEnableButtons() {
-            if (gapiInited && gisInited) {
-                document.getElementById('auth-button').style.display = 'block';
-            }
+        h3 {
+            margin: 0 0 20px 0; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-size: 1.2rem;
+            background: linear-gradient(to right, var(--neon-blue), var(--neon-purple));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
 
-        function handleAuthClick() {
-            tokenClient.callback = async (resp) => {
-                if (resp.error !== undefined) {
-                    alert('Authentication Error: ' + resp.error);
-                    throw (resp);
+        .mode-selector {
+            display: flex; background: rgba(255,255,255,0.05); padding: 4px;
+            border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 20px;
+        }
+        .mode-btn {
+            flex: 1; padding: 10px; border: none; background: transparent;
+            color: #64748b; font-size: 0.75rem; font-weight: bold; cursor: pointer;
+            transition: 0.3s; border-radius: 8px; text-transform: uppercase;
+        }
+        .mode-btn.active { background: var(--neon-blue); color: white; box-shadow: 0 0 10px rgba(0, 210, 255, 0.4); }
+
+        #extract-all-btn {
+            display: none; width: 100%; padding: 14px; margin-bottom: 15px;
+            background: linear-gradient(to right, var(--neon-blue), var(--neon-purple));
+            border: none; border-radius: 12px; color: white; font-weight: bold;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        .cloud-fetch {
+            display: flex; gap: 10px; margin-bottom: 20px;
+        }
+
+        .cloud-fetch input[type="date"] {
+            flex: 1; background: rgba(0,0,0,0.2); color: #e2e8f0;
+            border: 1px solid var(--glass-border); padding: 10px;
+            border-radius: 10px; color-scheme: dark; font-family: monospace;
+        }
+
+        .cloud-fetch button {
+            background: transparent; border: 1px solid var(--neon-purple);
+            color: var(--neon-purple); padding: 0 15px; border-radius: 10px;
+            font-weight: bold; cursor: pointer; transition: 0.3s; text-transform: uppercase; font-size: 0.75rem;
+        }
+        .cloud-fetch button:active { background: var(--neon-purple); color: white; }
+
+        .preview-container {
+            position: relative; margin-top: 10px; display: none; overflow: hidden;
+            border-radius: 16px; border: 2px solid var(--neon-blue);
+        }
+        #preview { width: 100%; display: block; }
+        .scan-line {
+            position: absolute; top: 0; left: 0; width: 100%; height: 4px;
+            background: var(--neon-blue); box-shadow: 0 0 15px var(--neon-blue);
+            animation: scan 2s linear infinite; z-index: 5;
+        }
+        @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
+
+        #status { font-size: 0.8rem; color: #94a3b8; font-family: monospace; margin: 15px 0; }
+
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; width: 100%; max-width: 450px; }
+        #history-list { width: 100%; max-width: 450px; margin-top: 15px; overflow-x: hidden; }
+
+        .txn-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px solid transparent;
+            border-radius: 16px; margin-bottom: 12px; display: flex; align-items: center;
+            padding: 12px; cursor: pointer; transition: transform 0.1s linear, opacity 0.3s ease;
+            user-select: none; touch-action: pan-y; position: relative; will-change: transform;
+        }
+        .txn-item.pending { border-color: var(--neon-purple); opacity: 0.7; }
+        .txn-item.in { border-color: var(--neon-green); }
+        .txn-item.out { border-color: var(--neon-red); }
+
+        .txn-thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; margin-right: 15px; pointer-events: none; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;}
+        .txn-brief { flex: 1; text-align: left; font-family: monospace; display: flex; flex-direction: column; overflow: hidden; pointer-events: none; }
+        .txn-title { font-size: 0.85rem; color: #e2e8f0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .txn-time { font-size: 0.65rem; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .engine-tag { color: var(--neon-blue); border: 1px solid var(--neon-blue); padding: 1px 4px; border-radius: 4px; font-size: 0.6rem; }
+        .meta-label { color: #64748b; font-weight: normal; }
+
+        #modal {
+            display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.98);
+            z-index: 1000; flex-direction: column; overflow-y: auto; align-items: center; padding: 40px 20px;
+        }
+        #modal-img {
+            max-width: 90%;
+            max-height: 50vh;
+            min-height: 300px;
+            border-radius: 16px;
+            border: 2px solid var(--neon-blue);
+            display: none;
+            object-fit: contain;
+            margin-bottom: 15px;
+        }
+        #modal-info-card {
+            display: none; width: 90%; max-width: 450px; background: rgba(0, 210, 255, 0.05);
+            border: 1px dashed var(--neon-blue); border-radius: 16px; padding: 20px;
+            margin-bottom: 15px; text-align: center; font-family: monospace;
+        }
+        #modal-info-card .info-title { color: var(--neon-blue); font-size: 0.85rem; font-weight: bold; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+        #modal-info-card .info-desc { color: #94a3b8; font-size: 0.75rem; line-height: 1.4; }
+
+        #modal-view {
+            background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border);
+            border-radius: 12px; padding: 20px; color: #e2e8f0;
+            font-family: monospace; width: 100%; max-width: 450px; line-height: 1.8;
+            white-space: pre-wrap; text-align: left; font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            min-height: 150px;
+        }
+        #modal-view:active { background: rgba(0, 210, 255, 0.1); }
+
+        #modal-form {
+            background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border);
+            border-radius: 12px; padding: 15px; width: 100%; max-width: 450px;
+            display: none; flex-direction: column; gap: 10px; text-align: left;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 4px; position: relative; }
+        .form-group label { font-size: 0.7rem; color: #94a3b8; font-family: monospace; text-transform: uppercase; }
+        .form-group input {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border);
+            border-radius: 8px; padding: 8px 10px; color: var(--neon-blue);
+            font-family: monospace; font-size: 0.85rem; width: 100%;
+        }
+        .form-group input:focus { border-color: var(--neon-blue); }
+
+        .select-popup-trigger {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border);
+            border-radius: 8px; padding: 8px 10px; color: var(--neon-blue);
+            font-family: monospace; font-size: 0.85rem; width: 100%; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .select-popup-trigger::after { content: '▼'; font-size: 0.6rem; color: #94a3b8; }
+
+        #popup-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8);
+            z-index: 2000; align-items: center; justify-content: center; padding: 20px;
+            backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+        }
+        .popup-card {
+            background: #0b1120; border: 2px solid var(--neon-blue); border-radius: 16px;
+            width: 100%; max-width: 320px; max-height: 70vh; display: flex; flex-direction: column;
+            box-shadow: 0 0 30px rgba(0, 210, 255, 0.3); overflow: hidden;
+        }
+        .popup-header {
+            padding: 15px; font-family: monospace; font-size: 0.9rem; font-weight: bold;
+            color: var(--neon-blue); border-bottom: 1px solid var(--glass-border); text-transform: uppercase;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .popup-close { font-size: 1.2rem; cursor: pointer; color: #94a3b8; }
+        .popup-body { overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+        .popup-option {
+            padding: 12px; font-family: monospace; font-size: 0.9rem; color: #e2e8f0;
+            background: rgba(255, 255, 255, 0.02); border: 1px solid transparent;
+            border-radius: 8px; cursor: pointer; text-align: center; transition: 0.2s;
+        }
+        .popup-option:hover, .popup-option:active {
+            background: rgba(0, 210, 255, 0.1); border-color: var(--neon-blue); color: var(--neon-blue);
+        }
+
+        .modal-actions {
+            display: none;
+            gap: 10px; width: 100%; max-width: 450px; margin-top: 15px;
+        }
+        .modal-actions.show { display: flex; }
+
+        .modal-btn {
+            flex: 1; padding: 12px; border-radius: 10px; font-weight: bold;
+            cursor: pointer; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 1px;
+        }
+        #action-btn { background: var(--neon-green); border: none; color: #000; }
+
+        .close-btn { position: fixed; top: 20px; right: 25px; font-size: 2.5rem; color: white; cursor: pointer; z-index: 1001; }
+
+        .toast {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 210, 255, 0.9); color: #000; padding: 8px 20px;
+            border-radius: 30px; font-family: monospace; font-weight: bold;
+            box-shadow: 0 0 20px rgba(0,210,255,0.4); z-index: 3000;
+            opacity: 0; transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        .toast.show { opacity: 1; }
+
+        .pending-message { color: #94a3b8; font-style: italic; }
+        .meta-label { color: #64748b; font-weight: normal; }
+
+        /* ─── Login section ─── */
+        .login-section {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        #user-info {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+        }
+        #user-info button {
+            background: var(--neon-red);
+            border: none;
+            padding: 4px 12px;
+            border-radius: 6px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h3>Data Core</h3>
+
+    <!-- ─── Google Login ─── -->
+    <div class="login-section">
+        <div id="g_id_onload"
+             data-client_id="YOUR_GOOGLE_CLIENT_ID"
+             data-context="signin"
+             data-ux_mode="popup"
+             data-callback="onGoogleSignIn"
+             data-auto_prompt="false">
+        </div>
+        <div class="g_id_signin"
+             data-type="standard"
+             data-shape="rectangular"
+             data-theme="outline"
+             data-text="signin_with"
+             data-size="large"
+             data-logo_alignment="left">
+        </div>
+        <div id="user-info">
+            <span id="user-email"></span>
+            <button onclick="signOut()">Sign Out</button>
+        </div>
+    </div>
+
+    <div class="mode-selector">
+        <button class="mode-btn" id="btn-standard" onclick="setMode('standard')">Standard</button>
+        <button class="mode-btn" id="btn-batch" onclick="setMode('batch')">Batch</button>
+    </div>
+
+    <div class="cloud-fetch">
+        <input type="date" id="fetch-date">
+        <button onclick="fetchFromCloud()">Cloud Sync</button>
+    </div>
+
+    <button id="extract-all-btn" onclick="processBatchQueue()">Extract All Pending</button>
+
+    <div id="status">System Online</div>
+
+    <div id="p-cont" class="preview-container">
+        <div class="scan-line"></div>
+        <img id="preview" src="" alt="Syncing...">
+    </div>
+
+    <div class="history-header">
+        <h4 style="margin:0; font-size: 0.8rem; color: #64748b; letter-spacing: 1px;">CACHE</h4>
+        <div style="display: flex; gap: 8px;">
+            <button id="copy-all-btn" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); padding:4px 8px; border-radius:6px; font-size:0.6rem; cursor:pointer;" onclick="copyAllData()">COPY ALL</button>
+            <button style="background:none; border:1px solid #f87171; color:#f87171; padding:4px 8px; border-radius:6px; font-size:0.6rem; cursor:pointer;" onclick="clearHistory()">PURGE ALL</button>
+        </div>
+    </div>
+    <div id="history-list"></div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast">Copied!</div>
+
+<!-- Modal -->
+<div id="modal">
+    <span class="close-btn" onclick="closeModal()">&times;</span>
+    <img id="modal-img" src="">
+    <div id="modal-info-card">
+        <div class="info-title">☁️ Cloud Synchronized Record</div>
+        <div class="info-desc">Fetched directly from remote server logs. No local receipt screenshot stored.</div>
+    </div>
+    <div id="modal-view">Select a transaction to view</div>
+    <div id="modal-form">
+        <div class="form-group"><label>📅 Date</label><input type="text" id="edit-date"></div>
+        <div class="form-group"><label>📱 App</label><input type="text" id="edit-app"></div>
+        <div class="form-group"><label>👤 Name</label><input type="text" id="edit-name"></div>
+        <div class="form-group"><label>🆔 ID</label><input type="text" id="edit-txnId" readonly style="opacity: 0.6;"></div>
+        <div class="form-group"><label>📝 Narration</label><input type="text" id="edit-imageMessage"></div>
+        <div class="form-group"><label>💰 Amount</label><input type="text" id="edit-amount"></div>
+        <div class="form-group"><label>📊 Direction</label><div class="select-popup-trigger" id="trigger-direction" onclick="openPopup('direction')">🟢 IN</div></div>
+        <div class="form-group"><label>⇄ Type</label><div class="select-popup-trigger" id="trigger-type" onclick="openPopup('type')">Credit</div></div>
+        <div class="form-group"><label>🏢 Account</label><div class="select-popup-trigger" id="trigger-account" onclick="openPopup('account')">Select Account</div></div>
+        <div class="form-group"><label>🏷️ Category</label><input type="text" id="edit-category"></div>
+        <div class="form-group"><label>🔗 Ref</label><input type="text" id="edit-ref"></div>
+    </div>
+    <div class="modal-actions" id="modal-actions">
+        <button class="modal-btn" id="action-btn" onclick="saveEditedData()">Save</button>
+    </div>
+</div>
+
+<!-- Popup Overlay -->
+<div id="popup-overlay" onclick="closePopupOverlay(event)">
+    <div class="popup-card" onclick="event.stopPropagation()">
+        <div class="popup-header"><span id="popup-title">Select Option</span><span class="popup-close" onclick="closePopup()">&times;</span></div>
+        <div class="popup-body" id="popup-options-list"></div>
+    </div>
+</div>
+
+<script>
+    // ─── CONFIGURATION ───────────────────────────────────────────────
+    const CLOUDFLARE_WORKER_URL = "financetokens.oprasannak.workers.dev";   // UPDATE THIS
+    const GOOGLE_CLIENT_ID = "419068456277-5ce42k9v6cqmgq19pheh2nb39nkf2839.apps.googleusercontent.com";                 // UPDATE THIS
+
+    // ─── State ──────────────────────────────────────────────────────
+    let userAccessToken = null;
+    let userEmail = null;
+    let activeModalId = null;
+    let currentRawText = "";
+    let isEditMode = false;
+
+    const DB_NAME = "TxnVaultDB";
+    const STORE_NAME = "transactions";
+    const accountOptionsMap = {
+        "UPI": ["FI", "HDFC New", "HDFC Old", "ICICI", "Indusind", "Kotak", "RBL", "SBI"],
+        "Credit": ["HDFC PhonePe", "HDFC Tata Nenu", "ICICI Coral", "SBM Novio", "SBI BPCL"]
+    };
+    const formDataState = { direction: 'IN', type: 'UPI', account: '' };
+
+    // ─── Google Sign-In ─────────────────────────────────────────────
+
+    function onGoogleSignIn(response) {
+        const tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: 'https://www.googleapis.com/auth/spreadsheets',
+            callback: async (tokenResponse) => {
+                userAccessToken = tokenResponse.access_token;
+                const payload = JSON.parse(atob(response.credential.split('.')[1]));
+                userEmail = payload.email;
+                document.getElementById('user-email').textContent = 'Logged in as: ' + userEmail;
+                document.getElementById('user-info').style.display = 'flex';
+                document.querySelector('.g_id_signin').style.display = 'none';
+                showToast('Signed in as ' + userEmail);
+
+                // ─── Initialise user's sheet ──────────────────────
+                try {
+                    const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'init',
+                            accessToken: userAccessToken,
+                            email: userEmail,
+                        }),
+                    });
+                    const initData = await initResp.json();
+                    if (initData.status === 'success') {
+                        showToast('Sheet ready!');
+                        // Auto‑fetch today's data
+                        fetchFromCloud();
+                    } else {
+                        showToast('Failed to initialize sheet: ' + initData.data);
+                    }
+                } catch (err) {
+                    console.error('Init error:', err);
+                    showToast('Error initializing sheet');
                 }
-                
-                // Alert 1: Confirms the popup closed and token was received
-                alert('Login successful! Sending request to create spreadsheet...');
-                
-                gapi.client.setToken({ access_token: resp.access_token });
-                
-                document.getElementById('auth-button').style.display = 'none';
-                document.getElementById('status').innerText = 'Creating your spreadsheet...';
-                
-                await createSpreadsheet();
-            };
+            },
+        });
+        tokenClient.requestAccessToken();
+    }
 
-            if (gapi.client.getToken() === null) {
-                tokenClient.requestAccessToken({prompt: 'consent'});
-            } else {
-                tokenClient.requestAccessToken({prompt: ''});
-            }
+    function signOut() {
+        userAccessToken = null;
+        userEmail = null;
+        document.getElementById('user-info').style.display = 'none';
+        document.querySelector('.g_id_signin').style.display = 'block';
+        showToast('Signed out');
+        // Clear local cache? (optional)
+        document.getElementById('history-list').innerHTML = '';
+    }
+
+    // ─── IndexedDB Helpers ──────────────────────────────────────────
+
+    const initDB = () => new Promise(res => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+        req.onsuccess = e => res(e.target.result);
+    });
+
+    // ─── UI / Mode ──────────────────────────────────────────────────
+
+    function setMode(mode) {
+        localStorage.setItem('txnVaultMode', mode);
+        updateModeUI();
+    }
+
+    function updateModeUI() {
+        const mode = localStorage.getItem('txnVaultMode') || 'standard';
+        document.getElementById('btn-standard').classList.toggle('active', mode === 'standard');
+        document.getElementById('btn-batch').classList.toggle('active', mode === 'batch');
+        checkPending();
+    }
+
+    async function checkPending() {
+        const db = await initDB();
+        const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
+        req.onsuccess = () => {
+            const hasPending = req.result.some(i => i.status === 'pending');
+            document.getElementById('extract-all-btn').style.display = hasPending ? 'block' : 'none';
+        };
+    }
+
+    // ─── Toast ──────────────────────────────────────────────────────
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.add('show');
+        clearTimeout(toast._timeout);
+        toast._timeout = setTimeout(() => toast.classList.remove('show'), 1500);
+    }
+
+    // ─── Cloud Sync ────────────────────────────────────────────────
+
+    async function fetchFromCloud() {
+        if (!userAccessToken) {
+            showToast('Please sign in first');
+            return;
         }
+        const dateVal = document.getElementById('fetch-date').value;
+        if (!dateVal) {
+            showToast('Please select a date');
+            return;
+        }
+        const statusEl = document.getElementById('status');
+        statusEl.innerText = `SYNCING DATA FOR ${dateVal}...`;
 
-        async function createSpreadsheet() {
-            try {
-                const response = await gapi.client.sheets.spreadsheets.create({
-                    resource: {
-                        properties: {
-                            title: 'account ledger'
-                        }
+        try {
+            const resp = await fetch(CLOUDFLARE_WORKER_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: "fetch",
+                    date: dateVal,
+                    accessToken: userAccessToken,
+                    email: userEmail,
+                    existingRefIds: []
+                })
+            });
+            const res = await resp.json();
+
+            if (res.status === "success" && res.data && res.data.length > 0) {
+                const db = await initDB();
+                const existingRecords = await new Promise(resolve => {
+                    const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
+                    req.onsuccess = () => resolve(req.result);
+                });
+
+                const tx = db.transaction(STORE_NAME, "readwrite");
+                const store = tx.objectStore(STORE_NAME);
+                let addedCount = 0;
+
+                res.data.forEach(cloudItem => {
+                    const isDuplicate = existingRecords.some(localItem => {
+                        if (cloudItem.refId && localItem.text && localItem.text.includes(cloudItem.refId)) return true;
+                        return localItem.text === cloudItem.formatted;
+                    });
+                    if (!isDuplicate) {
+                        store.add({
+                            blob: null,
+                            text: cloudItem.formatted,
+                            direction: cloudItem.direction,
+                            status: 'success',
+                            duration: null,
+                            engine: 'CLOUD',
+                            timestamp: Date.now()
+                        });
+                        addedCount++;
                     }
                 });
-                
-                const spreadsheetId = response.result.spreadsheetId;
-                const url = response.result.spreadsheetUrl;
-                
-                // Alert 2: Confirms API success
-                alert('Success! Spreadsheet created.');
-                
-                document.getElementById('status').innerHTML = 
-                    `✅ Spreadsheet created successfully! <br><br> <a href="${url}" target="_blank">Click here to open "account ledger"</a>`;
-            } catch (err) {
-                // Alert 3: Catches and displays the exact API error
-                let errorDetails = err.result ? err.result.error.message : err.message;
-                alert('API Error: ' + errorDetails);
-                document.getElementById('status').innerText = 'Error: ' + errorDetails;
-                console.error(err);
+
+                statusEl.innerText = addedCount > 0 ? `ADDED ${addedCount} NEW RECORDS` : "NO NEW RECORDS TO SYNC";
+                renderHistory();
+                checkPending();
+            } else {
+                statusEl.innerText = "NO DATA FOUND FOR THIS DATE";
+            }
+        } catch (e) {
+            statusEl.innerText = "CLOUD SYNC FAILED";
+            console.error(e);
+        }
+
+        setTimeout(() => { statusEl.innerText = "System Online"; }, 3000);
+    }
+
+    // ─── Extraction ─────────────────────────────────────────────────
+
+    async function runExtraction(blob) {
+        if (!userAccessToken) {
+            showToast('Please sign in first');
+            return null;
+        }
+        const start = Date.now();
+        const statusEl = document.getElementById('status');
+        const base64 = await new Promise(res => {
+            const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
+        });
+
+        let lastError = "Unknown Error";
+        const models = ['groq', 'gemini'];
+
+        for (let model of models) {
+            try {
+                statusEl.style.color = "#94a3b8";
+                statusEl.innerText = `SYNCING VIA ${model.toUpperCase()}...`;
+
+                const resp = await fetch(CLOUDFLARE_WORKER_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: "extract",
+                        image: base64,
+                        model: model,
+                        accessToken: userAccessToken,
+                        email: userEmail,
+                    })
+                });
+                const rawText = await resp.text();
+                let res;
+                try { res = JSON.parse(rawText); }
+                catch (parseError) { throw new Error("Invalid JSON: " + rawText.substring(0, 50)); }
+
+                if (res.status === "success" && typeof res.data === "object") {
+                    const duration = ((Date.now() - start) / 1000).toFixed(2);
+                    const d = res.data;
+                    return {
+                        duration,
+                        engine: model.toUpperCase(),
+                        direction: d.direction,
+                        formatted: `📅 Date: ${d.date}\n📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`
+                    };
+                } else {
+                    let errorDetails = res.data || res.message || res.status;
+                    if (typeof errorDetails === 'object') errorDetails = JSON.stringify(errorDetails);
+                    throw new Error(errorDetails);
+                }
+            } catch (e) {
+                console.warn(`${model.toUpperCase()} API failed:`, e);
+                lastError = e.message || "Network Error";
+                statusEl.style.color = "var(--neon-red)";
+                statusEl.innerText = `${model.toUpperCase()} ERR: ${lastError.substring(0, 80)}`;
+                await new Promise(resolve => setTimeout(resolve, 2500));
             }
         }
-    </script>
-</head>
-<body onload="gapiLoaded(); gisLoaded();">
-    <h2>Secure Google Sheets Manager</h2>
-    
-    <p id="status">Loading Google libraries...</p>
-    
-    <button id="auth-button" style="display: none;" onclick="handleAuthClick()">Authorize & Create Sheet</button>
+
+        statusEl.style.color = "var(--neon-red)";
+        statusEl.innerText = `EXTRACTION FAILED: ${lastError.substring(0, 50)}`;
+        setTimeout(() => {
+            statusEl.innerText = "System Online";
+            statusEl.style.color = "#94a3b8";
+        }, 5000);
+
+        return null;
+    }
+
+    // ─── Save Transaction ───────────────────────────────────────────
+
+    async function saveTxn(blob, text, direction, status = 'success', duration = null, engine = null, shouldRender = true) {
+        const db = await initDB();
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        await store.add({ blob, text, direction, status, duration, engine, timestamp: Date.now() });
+        if (shouldRender) { renderHistory(); checkPending(); }
+    }
+
+    // ─── Parse Fields ──────────────────────────────────────────────
+
+    function parseFields(text) {
+        const fields = { date: '', app: '', name: '', txnId: '', imageMessage: '', amount: '', direction: 'IN', type: 'UPI', account: '', category: '', ref: '' };
+        if (!text || text === "--- PENDING ---") return fields;
+        text.split('\n').forEach(line => {
+            if (line.includes('📅 Date:')) fields.date = line.replace('📅 Date:', '').trim();
+            else if (line.includes('📱 App:')) fields.app = line.replace('📱 App:', '').trim();
+            else if (line.includes('👤 Name:')) fields.name = line.replace('👤 Name:', '').trim();
+            else if (line.includes('🆔 ID:')) fields.txnId = line.replace('🆔 ID:', '').trim();
+            else if (line.includes('📝 Msg:')) fields.imageMessage = line.replace('📝 Msg:', '').trim();
+            else if (line.includes('💰 Amount:')) fields.amount = line.replace('💰 Amount:', '').trim();
+            else if (line.includes('📊 Direction:')) fields.direction = line.includes('IN') ? 'IN' : 'OUT';
+            else if (line.includes('⇄ Type:')) {
+                const val = line.replace('⇄ Type:', '').trim();
+                fields.type = (val.toLowerCase() === 'credit') ? 'Credit' : 'UPI';
+            }
+            else if (line.includes('🏢 Account:')) fields.account = line.replace('🏢 Account:', '').trim();
+            else if (line.includes('🏷️ Category:')) fields.category = line.replace('🏷️ Category:', '').trim();
+            else if (line.includes('🔗 Ref:')) fields.ref = line.replace('🔗 Ref:', '').trim();
+        });
+        return fields;
+    }
+
+    // ─── Render History ────────────────────────────────────────────
+
+    async function renderHistory() {
+        const db = await initDB();
+        const list = document.getElementById('history-list');
+        const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
+        const cloudSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z'%3E%3C/path%3E%3C/svg%3E";
+
+        req.onsuccess = () => {
+            list.innerHTML = "";
+            req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
+                const div = document.createElement('div');
+                div.className = `txn-item ${item.status === 'pending' ? 'pending' : (item.direction === "IN" ? "in" : "out")}`;
+                const url = item.blob ? URL.createObjectURL(item.blob) : cloudSvg;
+                const isCloudItem = !item.blob;
+
+                div.addEventListener('click', (e) => {
+                    if (div._swiping) return;
+                    openModal(item.id, item.text, isCloudItem, item.blob);
+                });
+
+                // Swipe to delete
+                let startX = 0;
+                div.addEventListener('touchstart', e => {
+                    startX = e.touches[0].clientX;
+                    div.style.transition = "none";
+                    div._swiping = false;
+                }, {passive: true});
+
+                div.addEventListener('touchmove', e => {
+                    const diffX = e.touches[0].clientX - startX;
+                    if (diffX < 0) {
+                        const move = Math.max(diffX, -200);
+                        div.style.transform = `translateX(${move}px)`;
+                        if (Math.abs(diffX) > 10) div._swiping = true;
+                    }
+                }, {passive: true});
+
+                div.addEventListener('touchend', e => {
+                    const diffX = e.changedTouches[0].clientX - startX;
+                    div.style.transition = "transform 0.3s ease, opacity 0.3s ease";
+                    if (diffX < -120) { handleSwipeDelete(div, item.id); }
+                    else { div.style.transform = "translateX(0)"; }
+                    setTimeout(() => div._swiping = false, 300);
+                }, {passive: true});
+
+                let nameDisplay = 'Unknown';
+                let dateDisplay = '';
+                let amountDisplay = '';
+                if (item.status === 'pending') {
+                    nameDisplay = '[Pending]';
+                } else if (item.text) {
+                    const fields = parseFields(item.text);
+                    nameDisplay = fields.name || 'Unknown';
+                    dateDisplay = fields.date || '';
+                    amountDisplay = fields.amount || '';
+                }
+
+                let subParts = [];
+                if (dateDisplay) subParts.push(`<span class="meta-label">Date:</span> ${dateDisplay}`);
+                if (amountDisplay) subParts.push(`<span class="meta-label">Amount:</span> ${amountDisplay}`);
+                const subText = subParts.length ? subParts.join('  •  ') : 'No details';
+
+                const timeTag = item.duration ? `<span>⏱️ ${item.duration}s</span>` : "";
+                const engineTag = item.engine ? `<span class="engine-tag">${item.engine}</span>` : "";
+
+                div.innerHTML = `
+                    <img src="${url}" class="txn-thumb" style="${isCloudItem ? 'padding: 12px;' : ''}">
+                    <div class="txn-brief">
+                        <span class="txn-title">${nameDisplay}</span>
+                        <div class="txn-time">${subText} ${timeTag} ${engineTag}</div>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        };
+    }
+
+    // ─── Swipe Delete ───────────────────────────────────────────────
+
+    async function handleSwipeDelete(el, id) {
+        el.style.transform = "translateX(-120%)";
+        el.style.opacity = "0";
+        setTimeout(async () => {
+            const db = await initDB();
+            await db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(id);
+            renderHistory();
+            checkPending();
+        }, 300);
+    }
+
+    // ─── Batch Processing ──────────────────────────────────────────
+
+    async function processBatchQueue() {
+        if (!userAccessToken) {
+            showToast('Please sign in first');
+            return;
+        }
+        const db = await initDB();
+        const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
+        req.onsuccess = async () => {
+            const pending = req.result.filter(i => i.status === 'pending');
+            if(!pending.length) return;
+            document.getElementById('extract-all-btn').disabled = true;
+            document.getElementById('p-cont').style.display = 'block';
+
+            for (let item of pending) {
+                document.getElementById('preview').src = URL.createObjectURL(item.blob);
+                const res = await runExtraction(item.blob);
+                if(res) {
+                    const tx = db.transaction(STORE_NAME, "readwrite");
+                    tx.objectStore(STORE_NAME).put({
+                        ...item, text: res.formatted, direction: res.direction,
+                        duration: res.duration, engine: res.engine, status: 'success'
+                    });
+                }
+            }
+            document.getElementById('p-cont').style.display = 'none';
+            document.getElementById('extract-all-btn').disabled = false;
+            renderHistory();
+            checkPending();
+        };
+    }
+
+    // ─── Modal ──────────────────────────────────────────────────────
+
+    function openModal(id, text, isCloudItem = false, blob = null) {
+        activeModalId = id;
+        currentRawText = text || "No data available";
+        isEditMode = false;
+
+        const viewEl = document.getElementById('modal-view');
+        const formEl = document.getElementById('modal-form');
+        const actionsEl = document.getElementById('modal-actions');
+        const imgEl = document.getElementById('modal-img');
+        const infoCard = document.getElementById('modal-info-card');
+
+        if (blob) {
+            if (imgEl.dataset.objectUrl) {
+                URL.revokeObjectURL(imgEl.dataset.objectUrl);
+            }
+            const url = URL.createObjectURL(blob);
+            imgEl.src = url;
+            imgEl.style.display = "block";
+            imgEl.dataset.objectUrl = url;
+            infoCard.style.display = "none";
+        } else if (isCloudItem) {
+            imgEl.style.display = "none";
+            infoCard.style.display = "block";
+        } else {
+            imgEl.style.display = "none";
+            infoCard.style.display = "none";
+        }
+
+        if (text && text !== "--- PENDING ---") {
+            viewEl.innerText = text;
+            viewEl.style.color = "#e2e8f0";
+            viewEl.style.fontStyle = "normal";
+        } else {
+            viewEl.innerText = "⏳ Pending transaction – no data extracted yet.";
+            viewEl.style.color = "#94a3b8";
+            viewEl.style.fontStyle = "italic";
+        }
+
+        viewEl.style.display = "block";
+        formEl.style.display = "none";
+        actionsEl.classList.remove('show');
+        document.getElementById('modal').style.display = "flex";
+    }
+
+    // ─── Modal tap/long press ──────────────────────────────────────
+
+    (function() {
+        const viewEl = document.getElementById('modal-view');
+        let pressTimer = null;
+        let isLongPress = false;
+
+        const startPress = (e) => {
+            isLongPress = false;
+            pressTimer = setTimeout(() => {
+                isLongPress = true;
+                enterEditMode();
+            }, 500);
+        };
+
+        const cancelPress = () => {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
+        };
+
+        const handleTap = (e) => {
+            if (isLongPress) {
+                isLongPress = false;
+                return;
+            }
+            if (isEditMode) return;
+            const text = viewEl.innerText;
+            if (!text || text.includes("Pending") || text === "No data available") {
+                showToast("Nothing to copy");
+                return;
+            }
+            navigator.clipboard.writeText(text).then(() => {
+                showToast("Copied!");
+                closeModal();
+            }).catch(() => {
+                showToast("Copy failed");
+            });
+        };
+
+        viewEl.addEventListener('touchstart', startPress, { passive: true });
+        viewEl.addEventListener('touchend', (e) => {
+            cancelPress();
+            if (!isEditMode) handleTap(e);
+        }, { passive: true });
+        viewEl.addEventListener('touchmove', cancelPress, { passive: true });
+
+        viewEl.addEventListener('mousedown', startPress);
+        viewEl.addEventListener('mouseup', (e) => {
+            cancelPress();
+            if (!isEditMode) handleTap(e);
+        });
+        viewEl.addEventListener('mouseleave', cancelPress);
+
+        viewEl.addEventListener('click', (e) => {
+            if (isLongPress) { isLongPress = false; return; }
+            if (!isEditMode) handleTap(e);
+        });
+    })();
+
+    function enterEditMode() {
+        if (isEditMode) return;
+        if (!currentRawText || currentRawText === "--- PENDING ---") {
+            showToast("Cannot edit pending transaction");
+            return;
+        }
+        isEditMode = true;
+
+        const viewEl = document.getElementById('modal-view');
+        const formEl = document.getElementById('modal-form');
+        const actionsEl = document.getElementById('modal-actions');
+
+        const data = parseFields(currentRawText);
+        document.getElementById('edit-date').value = data.date;
+        document.getElementById('edit-app').value = data.app;
+        document.getElementById('edit-name').value = data.name;
+        document.getElementById('edit-txnId').value = data.txnId;
+        document.getElementById('edit-imageMessage').value = data.imageMessage;
+        document.getElementById('edit-amount').value = data.amount;
+        document.getElementById('edit-category').value = data.category;
+        document.getElementById('edit-ref').value = data.ref;
+
+        selectOptionValue('direction', data.direction, data.direction === 'IN' ? '🟢 IN' : '🔴 OUT');
+        selectOptionValue('type', data.type, data.type);
+        const validAccs = accountOptionsMap[data.type] || [];
+        const finalAcc = validAccs.includes(data.account) ? data.account : (validAccs[0] || "");
+        selectOptionValue('account', finalAcc, finalAcc || "Select Account");
+
+        viewEl.style.display = "none";
+        formEl.style.display = "flex";
+        actionsEl.classList.add('show');
+    }
+
+    function closeModal() {
+        const imgEl = document.getElementById('modal-img');
+        if (imgEl.dataset.objectUrl) {
+            URL.revokeObjectURL(imgEl.dataset.objectUrl);
+            delete imgEl.dataset.objectUrl;
+        }
+        document.getElementById('modal').style.display = "none";
+        activeModalId = null;
+        isEditMode = false;
+        closePopup();
+        document.getElementById('modal-view').style.display = "block";
+        document.getElementById('modal-form').style.display = "none";
+        document.getElementById('modal-actions').classList.remove('show');
+    }
+
+    // ─── Popup (select options) ─────────────────────────────────────
+
+    function openPopup(type) {
+        const overlay = document.getElementById('popup-overlay');
+        const titleEl = document.getElementById('popup-title');
+        const optionsListEl = document.getElementById('popup-options-list');
+        optionsListEl.innerHTML = "";
+
+        let items = [];
+        if (type === 'direction') {
+            titleEl.innerText = "Select Direction";
+            items = [
+                { label: "🟢 IN", value: "IN" },
+                { label: "🔴 OUT", value: "OUT" }
+            ];
+        } else if (type === 'type') {
+            titleEl.innerText = "Select Type";
+            items = [
+                { label: "Credit", value: "Credit" },
+                { label: "UPI", value: "UPI" }
+            ];
+        } else if (type === 'account') {
+            titleEl.innerText = "Select Account";
+            items = (accountOptionsMap[formDataState.type] || []).map(acc => ({ label: acc, value: acc }));
+        }
+
+        items.forEach(item => {
+            const opt = document.createElement('div');
+            opt.className = 'popup-option';
+            opt.textContent = item.label;
+            opt.onclick = () => {
+                selectOptionValue(type, item.value, item.label);
+                closePopup();
+            };
+            optionsListEl.appendChild(opt);
+        });
+        overlay.style.display = "flex";
+    }
+
+    function closePopup() {
+        document.getElementById('popup-overlay').style.display = "none";
+    }
+
+    function closePopupOverlay(e) {
+        if (e.target.id === 'popup-overlay') {
+            closePopup();
+        }
+    }
+
+    function selectOptionValue(type, value, label) {
+        formDataState[type] = value;
+        document.getElementById(`trigger-${type}`).innerText = label;
+        if (type === 'type') {
+            const validAccounts = accountOptionsMap[value] || [];
+            formDataState.account = validAccounts[0] || "";
+            document.getElementById('trigger-account').innerText = formDataState.account || "Select Account";
+        }
+    }
+
+    // ─── Save Edited Data ──────────────────────────────────────────
+
+    async function saveEditedData() {
+        if (!activeModalId) return;
+        if (!userAccessToken) {
+            showToast('Please sign in first');
+            return;
+        }
+
+        const actionBtn = document.getElementById('action-btn');
+        actionBtn.innerText = "SYNCING...";
+
+        const date = document.getElementById('edit-date').value;
+        const app = document.getElementById('edit-app').value;
+        const name = document.getElementById('edit-name').value;
+        const txnId = document.getElementById('edit-txnId').value;
+        const imageMessage = document.getElementById('edit-imageMessage').value;
+        const amount = document.getElementById('edit-amount').value;
+        const category = document.getElementById('edit-category').value;
+        const refId = document.getElementById('edit-ref').value;
+
+        const direction = formDataState.direction;
+        const type = formDataState.type;
+        const account = formDataState.account;
+
+        const payload = {
+            action: "update",
+            item: { date, app, name, txnId, imageMessage, amount, direction, type, account, category, refId },
+            accessToken: userAccessToken,
+            email: userEmail,
+        };
+
+        try {
+            const resp = await fetch(CLOUDFLARE_WORKER_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const rawText = await resp.text();
+            let result;
+            try {
+                result = JSON.parse(rawText);
+            } catch (e) {
+                alert("Server returned invalid JSON:\n" + rawText);
+                actionBtn.innerText = "INVALID RESPONSE";
+                actionBtn.style.background = "var(--neon-red)";
+                setTimeout(() => {
+                    actionBtn.innerText = "Save";
+                    actionBtn.style.background = "var(--neon-green)";
+                }, 2000);
+                return;
+            }
+
+            if (result.status === "success") {
+                const db = await initDB();
+                const tx = db.transaction(STORE_NAME, "readwrite");
+                const store = tx.objectStore(STORE_NAME);
+
+                store.get(activeModalId).onsuccess = async (e) => {
+                    const record = e.target.result;
+                    if (record) {
+                        record.text = result.data.formatted;
+                        record.direction = direction;
+                        store.put(record);
+                        renderHistory();
+
+                        actionBtn.innerText = "SAVED!";
+                        actionBtn.style.background = "var(--neon-blue)";
+                        setTimeout(() => closeModal(), 800);
+                    }
+                };
+            } else {
+                alert("Sync failed: " + (result.data || result.status || "Unknown error"));
+                actionBtn.innerText = "SYNC FAILED";
+                actionBtn.style.background = "var(--neon-red)";
+                setTimeout(() => {
+                    actionBtn.innerText = "Save";
+                    actionBtn.style.background = "var(--neon-green)";
+                }, 2000);
+            }
+        } catch (err) {
+            console.error("Fetch error:", err);
+            alert("Network error:\n" + err.message);
+            actionBtn.innerText = "NETWORK ERROR";
+            actionBtn.style.background = "var(--neon-red)";
+            setTimeout(() => {
+                actionBtn.innerText = "Save";
+                actionBtn.style.background = "var(--neon-green)";
+            }, 2000);
+        }
+    }
+
+    // ─── Clear / Copy All ──────────────────────────────────────────
+
+    async function clearHistory() {
+        if(confirm("Purge All?")) {
+            const db = await initDB();
+            await db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear();
+            renderHistory();
+            checkPending();
+        }
+    }
+
+    async function copyAllData() {
+        const db = await initDB();
+        const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
+
+        req.onsuccess = async () => {
+            const items = req.result
+                .sort((a,b) => b.timestamp - a.timestamp)
+                .filter(i => i.status !== 'pending' && i.text);
+
+            if (items.length === 0) {
+                alert("No extracted data available to copy.");
+                return;
+            }
+
+            const allText = items.map((item, index) =>
+                `--- Transaction ${index + 1} ---\n${item.text}`
+            ).join('\n\n');
+
+            try {
+                await navigator.clipboard.writeText(allText);
+                const btn = document.getElementById('copy-all-btn');
+                btn.innerText = "COPIED!";
+                btn.style.color = "var(--neon-green)";
+                btn.style.borderColor = "var(--neon-green)";
+                setTimeout(() => {
+                    btn.innerText = "COPY ALL";
+                    btn.style.color = "var(--neon-blue)";
+                    btn.style.borderColor = "var(--neon-blue)";
+                }, 2000);
+            } catch (err) {
+                alert("Failed to copy.");
+            }
+        };
+    }
+
+    // ─── Initialisation ────────────────────────────────────────────
+
+    window.addEventListener('load', async () => {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('fetch-date').value = today;
+
+        updateModeUI();
+        const db = await initDB();
+        // Auto-clean old entries (keep 1 day)
+        const cleanTx = db.transaction(STORE_NAME, "readwrite");
+        const cleanStore = cleanTx.objectStore(STORE_NAME);
+        const cleanReq = cleanStore.getAll();
+        cleanReq.onsuccess = () => {
+            const now = Date.now();
+            const oneDay = 24 * 60 * 60 * 1000;
+            cleanReq.result.forEach(item => { if (now - item.timestamp > oneDay) cleanStore.delete(item.id); });
+        };
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('shared')) {
+            const cache = await caches.open('shared-data');
+            const keys = await cache.keys();
+            const mode = localStorage.getItem('txnVaultMode') || 'standard';
+
+            for (let key of keys) {
+                const resp = await cache.match(key);
+                const blob = await resp.blob();
+                await cache.delete(key);
+
+                if (mode === 'batch') {
+                    await saveTxn(blob, "", "", 'pending', null, null, false);
+                } else {
+                    document.getElementById('p-cont').style.display = 'block';
+                    document.getElementById('preview').src = URL.createObjectURL(blob);
+                    const res = await runExtraction(blob);
+                    if (res) await saveTxn(blob, res.formatted, res.direction, 'success', res.duration, res.engine, false);
+                    document.getElementById('p-cont').style.display = 'none';
+                }
+            }
+            window.history.replaceState({}, '', window.location.pathname);
+            renderHistory();
+            checkPending();
+        } else {
+            renderHistory();
+        }
+    });
+</script>
 </body>
 </html>
