@@ -49,7 +49,7 @@
             position: relative;
         }
         
-        #onboarding, #recoverySection, #restoreSection { margin-top: 8vh; }
+        #onboarding, #unlockSection, #recoverySection, #restoreSection { margin-top: 8vh; }
 
         h2, h3 { font-weight: 700; letter-spacing: -0.5px; margin-bottom: 1rem; }
         .app-title { font-size: 2.2rem; }
@@ -240,46 +240,6 @@
         .notes-title { color: var(--primary-orange); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
         .notes-content { color: white; font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap; }
         .notes-empty { color: var(--text-dim); font-style: italic; font-size: 0.85rem; text-align: center; padding: 10px 0; }
-
-        /* =========================================
-           NEW LOGIN POPUP / MODAL CLASSES
-           ========================================= */
-        .popup-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(15, 23, 42, 0.75);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            padding: 1.5rem;
-            opacity: 1;
-            transition: opacity 0.3s ease;
-        }
-        .popup-overlay.hidden {
-            opacity: 0;
-            pointer-events: none;
-            display: flex !important; /* Keep display flex for animation but hidden via opacity/pointer-events */
-        }
-        
-        .popup-content {
-            background: var(--bg-dark);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 24px;
-            padding: 2.5rem 1.5rem;
-            width: 100%;
-            max-width: 360px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
-            text-align: center;
-            position: relative;
-            transform: translateY(0);
-            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        .popup-overlay.hidden .popup-content {
-            transform: translateY(20px);
-        }
     </style>
 </head>
 <body>
@@ -333,41 +293,39 @@
         </div>
     </div>
 
-    <!-- NEW: Unlock Section acting as a floating Popup Modal -->
-    <div id="unlockSection" class="popup-overlay hidden">
-        <div class="popup-content">
-            <div class="bio-icon-wrapper" style="margin-bottom: 1.5rem;">
-                <div class="bio-icon-circle" style="width: 80px; height: 80px;">
-                    <span class="bio-icon">
-                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12"/><path d="M5 12C5 8.13401 8.13401 5 12 5C15.866 5 19 8.13401 19 12"/><path d="M8 12C8 9.79086 9.79086 8 12 8C14.2091 8 16 9.79086 16 12"/><path d="M12 11V13"/><path d="M12 17V17.01"/><path d="M11 22H13"/><path d="M15 21H17"/><path d="M7 21H9"/></svg>
-                    </span>
-                </div>
+    <!-- Unlock Section -->
+    <div id="unlockSection" class="hidden">
+        <div class="bio-icon-wrapper">
+            <div class="bio-icon-circle">
+                <span class="bio-icon">
+                    <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12"/><path d="M5 12C5 8.13401 8.13401 5 12 5C15.866 5 19 8.13401 19 12"/><path d="M8 12C8 9.79086 9.79086 8 12 8C14.2091 8 16 9.79086 16 12"/><path d="M12 11V13"/><path d="M12 17V17.01"/><path d="M11 22H13"/><path d="M15 21H17"/><path d="M7 21H9"/></svg>
+                </span>
             </div>
-            <h2 class="app-title" style="font-size: 1.8rem;">Card Vault</h2>
-            <p class="sub-text">Unlock to view your secure data</p>
+        </div>
+        <h2 class="app-title">Card Vault</h2>
+        <p class="sub-text">Securely access your cards</p>
 
-            <div class="pwd-wrapper">
-                <input type="password" id="masterPass" placeholder="••••••••">
-                <button type="button" class="pwd-toggle" onclick="togglePwd('masterPass', this)" tabindex="-1">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                </button>
-            </div>
+        <div class="pwd-wrapper">
+            <input type="password" id="masterPass" placeholder="••••••••">
+            <button type="button" class="pwd-toggle" onclick="togglePwd('masterPass', this)" tabindex="-1">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </button>
+        </div>
 
-            <div class="unlock-row">
-                <button type="button" class="btn-main" onclick="unlockVault()" style="margin-bottom: 10px;">
-                    Unlock
-                </button>
-                <button type="button" id="bioUnlockBtn" class="btn-main hidden" onclick="unlockWithBiometric()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12"/><path d="M5 12C5 8.13401 8.13401 5 12 5C15.866 5 19 8.13401 19 12"/><path d="M8 12C8 9.79086 9.79086 8 12 8C14.2091 8 16 9.79086 16 12"/><path d="M12 11V13"/><path d="M12 17V17.01"/></svg>
-                </button>
-            </div>
+        <div class="unlock-row">
+            <button type="button" class="btn-main" onclick="unlockVault()" style="margin-bottom: 10px;">
+                Unlock Vault
+            </button>
+            <button type="button" id="bioUnlockBtn" class="btn-main hidden" onclick="unlockWithBiometric()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12"/><path d="M5 12C5 8.13401 8.13401 5 12 5C15.866 5 19 8.13401 19 12"/><path d="M8 12C8 9.79086 9.79086 8 12 8C14.2091 8 16 9.79086 16 12"/><path d="M12 11V13"/><path d="M12 17V17.01"/></svg>
+            </button>
+        </div>
 
-            <button type="button" id="forgotLink" class="btn-link" onclick="showRecovery()">Forgot Password?</button>
+        <button type="button" id="forgotLink" class="btn-link" onclick="showRecovery()">Forgot Password?</button>
 
-            <div class="status-footer">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                Stored locally on this device only
-            </div>
+        <div class="status-footer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Stored locally on this device only
         </div>
     </div>
 
@@ -394,7 +352,7 @@
         <button type="button" class="btn-link" onclick="location.reload()">Cancel</button>
     </div>
 
-    <!-- Main Authenticated Content (Now visible behind modal on load) -->
+    <!-- Main Authenticated Content -->
     <div id="mainContent" class="hidden">
         <div class="top-action-bar">
             <!-- Left Side Actions -->
@@ -680,6 +638,7 @@
 
     // Input Formatters & Restrictions
     document.getElementById('num').addEventListener('input', e => {
+        // Restrict to max 16 digits
         let v = e.target.value.replace(/\D/g, '').substring(0, 16); 
         let formatted = v.match(/.{1,4}/g);
         e.target.value = formatted ? formatted.join(' ') : '';
@@ -695,16 +654,17 @@
         e.target.value = v.length > 2 ? v.substring(0, 2) + '/' + v.substring(2, 4) : v;
     });
 
+    // Restrict CVV to 3 digits only
     document.getElementById('cvv').addEventListener('input', e => {
         e.target.value = e.target.value.replace(/\D/g, '').slice(0, 3);
     });
 
     function promptUpdateName() {
         const isGoogle = localStorage.getItem("vault_user_email");
-        if (isGoogle) return; 
+        if (isGoogle) return; // Prevent renaming if Google account is linked
 
         let currentName = localStorage.getItem("vault_user_name") || "User";
-        currentName = currentName.replace("✏️", "").trim(); 
+        currentName = currentName.replace("✏️", "").trim(); // Clean up if stored accidentally
         
         const newName = prompt("Enter your name:", currentName);
         if (newName && newName.trim()) {
@@ -720,58 +680,60 @@
         codeClient = google.accounts.oauth2.initCodeClient({
             client_id: GOOGLE_CLIENT_ID,
             scope: "https://www.googleapis.com/auth/drive.file openid email profile",
-            ux_mode: "popup", // Note: This opens the Google Popup Window natively
-            prompt: "consent",
-            callback: async (response) => {
-                if (response.error) {
-                    showToast("Google connection failed");
-                    return;
-                }
-
-                showToast("Connecting account...");
-                try {
-                    const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ code: response.code, redirectUri: "postmessage" })
-                    });
-
-                    const data = await res.json();
-                    if (data.error) throw new Error(data.error);
-
-                    localStorage.setItem("vault_user_id", data.userId);
-                    if (data.email) localStorage.setItem("vault_user_email", data.email);
-                    if (data.name) localStorage.setItem("vault_user_name", data.name);
-                    if (data.picture) localStorage.setItem("vault_user_picture", data.picture);
-
-                    showToast("Google Linked!");
-                    updateProfileUI();
-                    await restoreFromCloud(true);
-                } catch (err) {
-                    alert("Google Authentication Error: " + err.message);
-                }
-            }
+            ux_mode: "redirect",
+            redirect_uri: window.location.origin + window.location.pathname,
+            prompt: "consent"
+            // No callback needed here; the browser will redirect
         });
     }
 
-    // UPDATED ONLOAD: Show main layout behind Modal when locked
-    window.addEventListener("load", () => {
-        initGoogleServices();
+    window.addEventListener("load", async () => {
+        // 1. Check if we just returned from the Google Sign-In redirect
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        
+        if (code) {
+            // Clean the URL so the authorization code doesn't stay visible
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            showToast("Connecting account...");
+            try {
+                // Send the exact same redirect URI to the backend for verification
+                const redirectUri = window.location.origin + window.location.pathname;
+                const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ code: code, redirectUri: redirectUri })
+                });
 
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+
+                localStorage.setItem("vault_user_id", data.userId);
+                if (data.email) localStorage.setItem("vault_user_email", data.email);
+                if (data.name) localStorage.setItem("vault_user_name", data.name);
+                if (data.picture) localStorage.setItem("vault_user_picture", data.picture);
+
+                showToast("Google Linked!");
+                updateProfileUI();
+                await restoreFromCloud(true);
+            } catch (err) {
+                alert("Google Authentication Error: " + err.message);
+            }
+        } else {
+            // Initialize normally if this is a standard page load
+            initGoogleServices();
+        }
+
+        // 2. Standard UI routing
         const hasVault = localStorage.getItem("vault_hash");
         const bioEnabled = localStorage.getItem("vault_bio_enabled") === "true";
 
         if (!hasVault) {
             document.getElementById("unlockSection").classList.add("hidden");
             document.getElementById("onboarding").classList.remove("hidden");
-            document.getElementById("mainContent").classList.add("hidden");
         } else {
-            // App has vault! Display the main framework behind the modal
-            document.getElementById("mainContent").classList.remove("hidden");
-            
-            // Show the popup overlay for unlock
             document.getElementById("unlockSection").classList.remove("hidden");
-            
             if (bioEnabled) {
                 document.getElementById("bioUnlockBtn").classList.remove("hidden");
             } else {
@@ -802,11 +764,8 @@
             if (CryptoJS.SHA256(pass).toString() !== storedHash) return alert("Wrong password!");
             MASTER_KEY = pass;
         }
-        
-        // Hide popup modal gracefully
         document.getElementById('unlockSection').classList.add('hidden');
-        
-        // Decrypt and populate the app
+        document.getElementById('mainContent').classList.remove('hidden');
         updateDropdown();
         updateProfileUI();
     }
